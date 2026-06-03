@@ -142,6 +142,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:hint="@string/label_target_lang"
+                    android:layout_marginBottom="16dp"
                     app:hintTextColor="@color/text_secondary"
                     app:boxStrokeColor="@color/primary_light"
                     app:boxStrokeWidthFocused="2dp"
@@ -154,6 +155,39 @@
                         android:inputType="none"
                         android:textColor="@color/text_primary" />
                 </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- Gemini API Key Input -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Clave API de Gemini (Opcional - Traducción IA)"
+                    android:layout_marginBottom="4dp"
+                    app:hintTextColor="@color/text_secondary"
+                    app:boxStrokeColor="@color/primary_light"
+                    app:boxStrokeWidthFocused="2dp"
+                    app:boxBackgroundColor="@color/bg_card_secondary"
+                    app:endIconMode="password_toggle">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/edit_gemini_key"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textPassword"
+                        android:textColor="@color/text_primary" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- Help link to get Gemini Key -->
+                <TextView
+                    android:id="@+id/text_get_key"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Consigue una clave gratis en Google AI Studio ↗"
+                    android:textColor="@color/accent"
+                    android:textSize="12sp"
+                    android:layout_gravity="end"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:layout_marginBottom="8dp" />
 
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>

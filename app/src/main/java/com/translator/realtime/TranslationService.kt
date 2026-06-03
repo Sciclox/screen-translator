@@ -35,6 +35,7 @@ import com.google.mlkit.nl.translate.TranslateLanguage
 import java.net.HttpURLConnection
 import java.net.URL
 import org.json.JSONArray
+import org.json.JSONObject
 
 class TranslationService : Service() {
 
@@ -288,6 +289,9 @@ class TranslationService : Service() {
                 overlayView.clearTranslations()
                 translationsShowing = true
 
+                val prefs = getSharedPreferences("translator_prefs", Context.MODE_PRIVATE)
+                val apiKey = prefs.getString("gemini_api_key", "") ?: ""
+
                 // Translate each text block and render it on screen overlay
                 for (block in blocks) {
                     val originalText = block.text
@@ -297,14 +301,24 @@ class TranslationService : Service() {
 
                     // Translate on a background thread for high-quality online API with offline fallback
                     Thread {
-                        val translatedText = translateOnline(cleanedText, activeSourceLang, activeTargetLang)
+                        var translatedText: String? = null
+                        
+                        // 1. Try Gemini AI translation if API key is provided
+                        if (apiKey.isNotEmpty()) {
+                            translatedText = translateWithGemini(cleanedText, activeSourceLang, activeTargetLang, apiKey)
+                        }
+                        
+                        // 2. Fallback to Google Translate Online if Gemini fails or is not configured
+                        if (translatedText == null) {
+                            translatedText = translateOnline(cleanedText, activeSourceLang, activeTargetLang)
+                        }
                         
                         if (translatedText != null) {
                             if (translationsShowing) {
                                 overlayView.addTranslation(translatedText, bounds)
                             }
                         } else {
-                            // Fallback to offline translation model
+                            // 3. Last fallback: offline translation model
                             trans.translate(cleanedText)
                                 .addOnSuccessListener { offlineTranslation ->
                                     if (translationsShowing) {
@@ -388,6 +402,74 @@ class TranslationService : Service() {
         sendBroadcast(Intent(MainActivity.ACTION_SERVICE_STATE_CHANGED).apply {
             setPackage(packageName)
         })
+    }
+
+    private fun translateWithGemini(text: String, source: String, target: String, apiKey: String): String? {
+        var conn: HttpURLConnection? = null
+        return try {
+            val url = URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey")
+            conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.connectTimeout = 5000
+            conn.readTimeout = 5000
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.doOutput = true
+
+            val sourceName = getLanguageName(source)
+            val targetName = getLanguageName(target)
+
+            val requestBody = JSONObject().apply {
+                put("contents", JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("parts", JSONArray().apply {
+                            put(JSONObject().apply {
+                                put("text", "Eres un traductor experto de manga e historias del idioma $sourceName al $targetName. Traduce el siguiente texto de forma natural, manteniendo el tono coloquial y el contexto. Devuelve UNICAMENTE la traducción final, sin comentarios, introducciones ni comillas adicionales.\n\nTexto:\n$text")
+                            })
+                        })
+                    })
+                })
+            }.toString()
+
+            conn.outputStream.use { os ->
+                os.write(requestBody.toByteArray(charset("UTF-8")))
+            }
+
+            if (conn.responseCode == 200) {
+                val response = conn.inputStream.bufferedReader().use { it.readText() }
+                val jsonResponse = JSONObject(response)
+                val candidates = jsonResponse.getJSONArray("candidates")
+                val content = candidates.getJSONObject(0).getJSONObject("content")
+                val parts = content.getJSONArray("parts")
+                var result = parts.getJSONObject(0).getString("text").trim()
+                
+                // Strip unnecessary enclosing quotes if Gemini wraps the response in them
+                if (result.startsWith("\"") && result.endsWith("\"")) {
+                    result = result.substring(1, result.length - 1)
+                }
+                result
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        } finally {
+            conn?.disconnect()
+        }
+    }
+
+    private fun getLanguageName(code: String): String {
+        return when(code) {
+            "ja" -> "Japonés"
+            "es" -> "Español"
+            "en" -> "Inglés"
+            "zh" -> "Chino"
+            "ko" -> "Coreano"
+            "fr" -> "Francés"
+            "de" -> "Alemán"
+            "pt" -> "Portugués"
+            else -> code
+        }
     }
 
     private fun translateOnline(text: String, source: String, target: String): String? {

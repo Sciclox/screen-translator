@@ -24,6 +24,9 @@ import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.TranslateRemoteModel
 import android.content.SharedPreferences
 import android.widget.TextView
+import com.google.android.material.textfield.TextInputEditText
+import android.text.TextWatcher
+import android.text.Editable
 
 class MainActivity : AppCompatActivity() {
 
@@ -35,6 +38,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var modelProgressBar: LinearProgressIndicator
     private lateinit var btnDownloadModel: MaterialButton
     private lateinit var btnToggleService: MaterialButton
+    private lateinit var editGeminiKey: TextInputEditText
+    private lateinit var textGetKey: TextView
 
     private lateinit var prefs: SharedPreferences
 
@@ -85,9 +90,12 @@ class MainActivity : AppCompatActivity() {
         modelProgressBar = findViewById(R.id.model_progress_bar)
         btnDownloadModel = findViewById(R.id.btn_download_model)
         btnToggleService = findViewById(R.id.btn_toggle_service)
+        editGeminiKey = findViewById(R.id.edit_gemini_key)
+        textGetKey = findViewById(R.id.text_get_key)
 
         setupDropdowns()
         setupListeners()
+        setupGeminiConfig()
         checkPermissions()
         checkModelsStatus()
         updateServiceStatusUI()
@@ -155,6 +163,24 @@ class MainActivity : AppCompatActivity() {
             } else {
                 startTranslationProcess()
             }
+        }
+    }
+
+    private fun setupGeminiConfig() {
+        val savedKey = prefs.getString("gemini_api_key", "") ?: ""
+        editGeminiKey.setText(savedKey)
+
+        editGeminiKey.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                prefs.edit().putString("gemini_api_key", s.toString().trim()).apply()
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        textGetKey.setOnClickListener {
+            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/"))
+            startActivity(browserIntent)
         }
     }
 
