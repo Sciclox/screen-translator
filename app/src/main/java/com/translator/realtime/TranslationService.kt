@@ -10,6 +10,8 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
+import android.graphics.Rect
+import kotlin.math.abs
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.ImageReader
@@ -280,9 +282,14 @@ class TranslationService : Service() {
         
         recognizer.process(inputImage)
             .addOnSuccessListener { visionText ->
-                val blocks = visionText.textBlocks
-                if (blocks.isEmpty()) {
-                    Toast.makeText(this, "No se detectó texto en la pantalla", Toast.LENGTH_SHORT).show()
+                // 1. Filter text blocks to only translate the selected language (e.g. ignore English UI text on Japanese manga)
+                val targetBlocks = visionText.textBlocks.filter { block ->
+                    shouldTranslateBlock(block.text, activeSourceLang)
+                }
+
+                if (targetBlocks.isEmpty()) {
+                    overlayView.clearTranslations()
+                    translationsShowing = true // Set state so click can clear it if needed
                     return@addOnSuccessListener
                 }
 
@@ -291,38 +298,58 @@ class TranslationService : Service() {
 
                 val prefs = getSharedPreferences("translator_prefs", Context.MODE_PRIVATE)
                 val apiKey = prefs.getString("gemini_api_key", "") ?: ""
+                val density = resources.displayMetrics.density
 
-                // Translate each text block and render it on screen overlay
-                for (block in blocks) {
-                    val originalText = block.text
-                    val bounds = block.boundingBox ?: continue
-                    val cleanedText = cleanTextForTranslation(originalText, activeSourceLang)
+                // 2. Group close text blocks (spatial clustering) to combine multi-line dialog bubbles into one translation unit
+                val clusters = groupTextBlocks(targetBlocks, density)
+
+                for (cluster in clusters) {
+                    // 3. Sort blocks inside the cluster according to correct reading order
+                    if (activeSourceLang == "ja") {
+                        // Japanese manga vertical text layout is read right-to-left
+                        cluster.textBlocks.sortByDescending { it.boundingBox?.right ?: 0 }
+                    } else {
+                        // Latin horizontal text layout is read top-to-bottom, left-to-right
+                        cluster.textBlocks.sortWith(Comparator { b1, b2 ->
+                            val r1 = b1.boundingBox ?: Rect()
+                            val r2 = b2.boundingBox ?: Rect()
+                            if (abs(r1.top - r2.top) < 15 * density) {
+                                r1.left.compareTo(r2.left)
+                            } else {
+                                r1.top.compareTo(r2.top)
+                            }
+                        })
+                    }
+
+                    // 4. Combine dialogues into one unified text block
+                    val combinedText = cluster.textBlocks.joinToString("\n") { it.text }
+                    val cleanedText = cleanTextForTranslation(combinedText, activeSourceLang)
                     if (cleanedText.isBlank()) continue
 
-                    // Translate on a background thread for high-quality online API with offline fallback
+                    // Translate on a background thread for high-quality online API with fallback
                     Thread {
                         var translatedText: String? = null
                         
-                        // 1. Try Gemini AI translation if API key is provided
+                        // Try Gemini AI translation if API key is provided
                         if (apiKey.isNotEmpty()) {
                             translatedText = translateWithGemini(cleanedText, activeSourceLang, activeTargetLang, apiKey)
                         }
                         
-                        // 2. Fallback to Google Translate Online if Gemini fails or is not configured
+                        // Fallback to Google Translate Online if Gemini fails or is not configured
                         if (translatedText == null) {
                             translatedText = translateOnline(cleanedText, activeSourceLang, activeTargetLang)
                         }
                         
                         if (translatedText != null) {
                             if (translationsShowing) {
-                                overlayView.addTranslation(translatedText, bounds)
+                                overlayView.addTranslation(translatedText, cluster.rect)
                             }
                         } else {
-                            // 3. Last fallback: offline translation model
+                            // Last fallback: offline translation model
                             trans.translate(cleanedText)
                                 .addOnSuccessListener { offlineTranslation ->
                                     if (translationsShowing) {
-                                        overlayView.addTranslation(offlineTranslation, bounds)
+                                        overlayView.addTranslation(offlineTranslation, cluster.rect)
                                     }
                                 }
                         }
@@ -519,6 +546,97 @@ class TranslationService : Service() {
                 .replace("\\s+".toRegex(), " ")
                 .trim()
         }
+    }
+
+    // Spatial Clustering Classes & Methods for Speech Bubble Grouping
+    private class TextCluster(
+        val rect: Rect,
+        val textBlocks: MutableList<com.google.mlkit.vision.text.Text.TextBlock>
+    ) {
+        fun merge(other: TextCluster): TextCluster {
+            val mergedRect = Rect(rect).apply { union(other.rect) }
+            val mergedBlocks = mutableListOf<com.google.mlkit.vision.text.Text.TextBlock>().apply {
+                addAll(textBlocks)
+                addAll(other.textBlocks)
+            }
+            return TextCluster(mergedRect, mergedBlocks)
+        }
+    }
+
+    private fun groupTextBlocks(
+        blocks: List<com.google.mlkit.vision.text.Text.TextBlock>,
+        density: Float
+    ): List<TextCluster> {
+        val threshold = 70 * density // 70dp proximity threshold to merge blocks in same bubble
+        val clusters = blocks.map { TextCluster(Rect(it.boundingBox ?: Rect()), mutableListOf(it)) }.toMutableList()
+        
+        var merged = true
+        while (merged) {
+            merged = false
+            var i = 0
+            while (i < clusters.size) {
+                var j = i + 1
+                while (j < clusters.size) {
+                    if (areClustersClose(clusters[i], clusters[j], threshold)) {
+                        val mergedCluster = clusters[i].merge(clusters[j])
+                        clusters[i] = mergedCluster
+                        clusters.removeAt(j)
+                        merged = true
+                        continue
+                    }
+                    j++
+                }
+                i++
+            }
+        }
+        return clusters
+    }
+
+    private fun areClustersClose(c1: TextCluster, c2: TextCluster, threshold: Float): Boolean {
+        val r1 = c1.rect
+        val r2 = c2.rect
+
+        val xDist = if (r1.right < r2.left) {
+            r2.left - r1.right
+        } else if (r2.right < r1.left) {
+            r1.left - r2.right
+        } else {
+            0
+        }
+
+        val yDist = if (r1.bottom < r2.top) {
+            r2.top - r1.bottom
+        } else if (r2.bottom < r1.top) {
+            r1.top - r2.bottom
+        } else {
+            0
+        }
+
+        return xDist < threshold && yDist < threshold
+    }
+
+    // Language Filtering helpers to only translate the selected language
+    private fun shouldTranslateBlock(text: String, sourceLang: String): Boolean {
+        if (sourceLang == "ja") {
+            return containsJapaneseCharacters(text)
+        }
+        if (sourceLang == "zh") {
+            return text.any { it.code in 0x4E00..0x9FFF }
+        }
+        if (sourceLang == "ko") {
+            return text.any { it.code in 0xAC00..0xD7A3 || it.code in 0x3130..0x318F }
+        }
+        return true
+    }
+
+    private fun containsJapaneseCharacters(text: String): Boolean {
+        for (char in text) {
+            val codePoint = char.code
+            if (codePoint in 0x3040..0x309F) return true // Hiragana
+            if (codePoint in 0x30A0..0x30FF) return true // Katakana
+            if (codePoint in 0x4E00..0x9FFF) return true // Kanji
+        }
+        return false
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
