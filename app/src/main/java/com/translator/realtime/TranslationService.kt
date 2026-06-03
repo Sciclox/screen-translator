@@ -50,6 +50,10 @@ class TranslationService : Service() {
     
     private var translationsShowing = false
     
+    // Capture resources
+    private var imageReader: ImageReader? = null
+    private var virtualDisplay: VirtualDisplay? = null
+    
     // ML Kit Components
     private var textRecognizer: TextRecognizer? = null
     private var translator: Translator? = null
@@ -107,6 +111,9 @@ class TranslationService : Service() {
                     stopSelf()
                 }
             }, Handler(Looper.getMainLooper()))
+            
+            // Start persistent capture resources
+            initializeCaptureResources()
         } catch (e: Exception) {
             Toast.makeText(this, "Error al iniciar captura: ${e.message}", Toast.LENGTH_LONG).show()
             stopSelf()
@@ -150,6 +157,24 @@ class TranslationService : Service() {
         } else {
             TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
         }
+    }
+
+    private fun initializeCaptureResources() {
+        val displayMetrics = resources.displayMetrics
+        val width = displayMetrics.widthPixels
+        val height = displayMetrics.heightPixels
+        val density = displayMetrics.densityDpi
+
+        // Persistent imageReader with buffer size 2
+        imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
+        
+        virtualDisplay = mediaProjection?.createVirtualDisplay(
+            "TranslatorCapture",
+            width, height, density,
+            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+            imageReader?.surface,
+            null, null
+        )
     }
 
     private fun showOverlayViews() {
@@ -205,10 +230,9 @@ class TranslationService : Service() {
     }
 
     private fun captureAndTranslate() {
-        val proj = mediaProjection
-        if (proj == null) {
-            Toast.makeText(this, "Captura de pantalla no disponible", Toast.LENGTH_SHORT).show()
-            stopSelf()
+        val reader = imageReader
+        if (reader == null) {
+            Toast.makeText(this, "Captura de pantalla no inicializada. Reinicia el servicio.", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -217,40 +241,29 @@ class TranslationService : Service() {
 
         Toast.makeText(this, "Traduciendo pantalla...", Toast.LENGTH_SHORT).show()
 
-        val displayMetrics = resources.displayMetrics
-        val width = displayMetrics.widthPixels
-        val height = displayMetrics.heightPixels
-        val density = displayMetrics.densityDpi
+        var image = reader.acquireLatestImage()
+        if (image == null) {
+            image = reader.acquireNextImage()
+        }
 
-        // Capture screen image via ImageReader
-        val imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
-        val virtualDisplay = proj.createVirtualDisplay(
-            "TranslatorCapture",
-            width, height, density,
-            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            imageReader.surface,
-            null, null
-        )
+        if (image != null) {
+            try {
+                val displayMetrics = resources.displayMetrics
+                val width = displayMetrics.widthPixels
+                val height = displayMetrics.heightPixels
+                
+                val bitmap = getCleanBitmap(image, width, height)
+                image.close()
 
-        imageReader.setOnImageAvailableListener({ reader ->
-            val image = reader.acquireLatestImage()
-            if (image != null) {
-                try {
-                    // Extract bitmap
-                    val bitmap = getCleanBitmap(image, width, height)
-                    image.close()
-
-                    // Cleanup virtual display immediately
-                    virtualDisplay.release()
-                    imageReader.close()
-
-                    // Perform OCR and Translate
-                    runOcrAndTranslate(bitmap)
-                } catch (e: Exception) {
-                    Toast.makeText(this, "Error al capturar frame: ${e.message}", Toast.LENGTH_SHORT).show()
-                }
+                // Perform OCR and Translate
+                runOcrAndTranslate(bitmap)
+            } catch (e: Exception) {
+                Toast.makeText(this, "Error al procesar captura: ${e.message}", Toast.LENGTH_SHORT).show()
             }
-        }, Handler(Looper.getMainLooper()))
+        } else {
+            // Provide a friendly reminder to interact/move screen if buffer is empty
+            Toast.makeText(this, "Inténtalo de nuevo. Si persiste, mueve un poco la pantalla.", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun getCleanBitmap(image: android.media.Image, width: Int, height: Int): Bitmap {
@@ -417,6 +430,12 @@ class TranslationService : Service() {
             windowManager.removeView(overlayView)
         } catch (e: Exception) { /* already removed or not attached */ }
 
+        // Release capture resources
+        virtualDisplay?.release()
+        virtualDisplay = null
+        imageReader?.close()
+        imageReader = null
+
         // Release MediaProjection
         mediaProjection?.stop()
         mediaProjection = null
@@ -567,7 +586,7 @@ class TranslationService : Service() {
         blocks: List<com.google.mlkit.vision.text.Text.TextBlock>,
         density: Float
     ): List<TextCluster> {
-        val threshold = 70 * density // 70dp proximity threshold to merge blocks in same bubble
+        val threshold = 25 * density // 25dp proximity threshold to merge blocks in same bubble (avoids chaining separate bubbles)
         val clusters = blocks.map { TextCluster(Rect(it.boundingBox ?: Rect()), mutableListOf(it)) }.toMutableList()
         
         var merged = true
