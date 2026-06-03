@@ -1,0 +1,12 @@
+# Built assets and files
+.gradle
+/build
+/app/build
+/local.properties
+.idea
+*.iml
+*.apk
+*.ap_
+*.dex
+captures/
+.DS_Store

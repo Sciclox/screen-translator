@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Traductor Pantalla</string>
+    <string name="title_main">Traductor en Tiempo Real</string>
+    <string name="status_stopped">Servicio Inactivo</string>
+    <string name="status_running">Servicio Activo</string>
+    <string name="btn_start">Iniciar Traductor</string>
+    <string name="btn_stop">Detener Traductor</string>
+    <string name="label_source_lang">Idioma Origen (OCR)</string>
+    <string name="label_target_lang">Idioma Destino</string>
+    <string name="model_status_downloaded">Modelo de traducción descargado (Listo)</string>
+    <string name="model_status_not_downloaded">Modelo no descargado (Presiona el botón de abajo)</string>
+    <string name="model_status_downloading">Descargando modelo offline... (%1$d%%)</string>
+    <string name="btn_download_model">Descargar Modelo Offline</string>
+    <string name="permission_required_title">Permisos requeridos</string>
+    <string name="permission_required_msg">Para traducir en tiempo real sin interrumpir tus gestos, la aplicación requiere el permiso de "Mostrar sobre otras aplicaciones".</string>
+</resources>
