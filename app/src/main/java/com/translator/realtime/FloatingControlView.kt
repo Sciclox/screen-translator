@@ -26,34 +26,35 @@ class FloatingControlView(
     private var touchStartTime = 0L
 
     init {
-        // Create the bubble background programmatically: Purple-to-violet gradient
+        // Create a premium glassmorphic neon bubble background: Dark indigo card with neon cyan border
         val bubbleBackground = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
-            colors = intArrayOf(Color.parseColor("#7B2CBF"), Color.parseColor("#9D4EDD"))
-            orientation = GradientDrawable.Orientation.LEFT_RIGHT
-            // Add a clean border
-            setStroke(2 * resources.displayMetrics.density.toInt(), Color.parseColor("#FFFFFF"))
+            setColor(Color.parseColor("#E6151228")) // 90% opacity dark space purple
+            // Neon cyan border matching the app icon viewfinder
+            setStroke(3 * resources.displayMetrics.density.toInt(), Color.parseColor("#00F2FE"))
         }
         
         background = bubbleBackground
         
-        // Add drop shadow
-        elevation = 8f * resources.displayMetrics.density
+        // Add premium drop shadow
+        elevation = 12f * resources.displayMetrics.density
 
         // Create the translation symbol text view
         val symbolTextView = TextView(context).apply {
             text = "文"
-            textSize = 20f
+            textSize = 22f // Slightly larger
+            setTypeface(typeface, android.graphics.Typeface.BOLD) // Bold
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
+            // Set text shadow for neon glowing effect
+            setShadowLayer(8f, 0f, 0f, Color.parseColor("#00F2FE"))
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
         }
         
         addView(symbolTextView)
 
-        // Set padding
-        val paddingVal = (12 * resources.displayMetrics.density).toInt()
-        setPadding(paddingVal, paddingVal, paddingVal, paddingVal)
+        // No padding so the text spans exactly MATCH_PARENT and is perfectly centered
+        setPadding(0, 0, 0, 0)
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {

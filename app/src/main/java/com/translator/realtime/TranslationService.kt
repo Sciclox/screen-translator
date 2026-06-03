@@ -147,10 +147,13 @@ class TranslationService : Service() {
     }
 
     private fun showOverlayViews() {
-        // 1. Add Draggable Floating Control Bubble
+        // 1. Add Draggable Floating Control Bubble (Circular 56dp FAB)
+        val density = resources.displayMetrics.density
+        val bubbleSize = (56 * density).toInt()
+
         val bubbleParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            bubbleSize,
+            bubbleSize,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) 
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY 
             else 
@@ -286,8 +289,10 @@ class TranslationService : Service() {
                 for (block in blocks) {
                     val originalText = block.text
                     val bounds = block.boundingBox ?: continue
+                    val cleanedText = cleanTextForTranslation(originalText, activeSourceLang)
+                    if (cleanedText.isBlank()) continue
 
-                    trans.translate(originalText)
+                    trans.translate(cleanedText)
                         .addOnSuccessListener { translatedText ->
                             // Confirm overlays are still active before displaying
                             if (translationsShowing) {
@@ -369,6 +374,22 @@ class TranslationService : Service() {
         sendBroadcast(Intent(MainActivity.ACTION_SERVICE_STATE_CHANGED).apply {
             setPackage(packageName)
         })
+    }
+
+    private fun cleanTextForTranslation(text: String, sourceLang: String): String {
+        return if (sourceLang == "ja") {
+            // For Japanese: remove all spaces, newlines, and carriage returns
+            // to reconstruct sentences and translate full dialogues accurately
+            text.replace("\\s".toRegex(), "")
+                .replace("\n", "")
+                .replace("\r", "")
+        } else {
+            // For English/Latin: replace newlines with a space, strip double spaces and trim
+            text.replace("\r", "")
+                .replace("\n", " ")
+                .replace("\\s+".toRegex(), " ")
+                .trim()
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

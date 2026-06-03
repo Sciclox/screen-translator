@@ -1,0 +1,43 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Viewfinder scanner corners (Neon turquoise) -->
+    <path
+        android:pathData="M34,34 L26,34 A2,2 0,0 1,24 32 L24,24 A2,2 0,0 1,26 22 L34,22"
+        android:strokeColor="#00F2FE"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"/>
+    <path
+        android:pathData="M74,34 L82,34 A2,2 0,0 0,84 32 L84,24 A2,2 0,0 0,82 22 L74,22"
+        android:strokeColor="#00F2FE"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"/>
+    <path
+        android:pathData="M34,74 L26,74 A2,2 0,0 0,24 76 L24,84 A2,2 0,0 0,26 86 L34,86"
+        android:strokeColor="#00F2FE"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"/>
+    <path
+        android:pathData="M74,74 L82,74 A2,2 0,0 1,84 76 L84,84 A2,2 0,0 1,82 86 L74,86"
+        android:strokeColor="#00F2FE"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"/>
+
+    <!-- Letter A (White) -->
+    <path
+        android:pathData="M38,44 L44,60 M44,60 L50,44 M40,55 L48,55"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"/>
+
+    <!-- Kanji/Hanzi Wen (文) (Purple Light) -->
+    <path
+        android:pathData="M58,46 L72,46 M65,42 L65,49 M60,53 L70,60 M70,53 C66,56 61,59 58,60"
+        android:strokeColor="#9D4EDD"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"/>
+</vector>
