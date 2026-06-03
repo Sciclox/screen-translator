@@ -38,7 +38,8 @@ dependencies {
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
 
-    // ML Kit Text Recognition (Japanese)
+    // ML Kit Text Recognition (Japanese and Latin)
+    implementation 'com.google.mlkit:text-recognition:16.0.1'
     implementation 'com.google.mlkit:text-recognition-japanese:16.0.1'
     
     // ML Kit Translation
