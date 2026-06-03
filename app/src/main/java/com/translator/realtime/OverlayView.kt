@@ -8,6 +8,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.widget.FrameLayout
 import android.widget.TextView
+import androidx.core.text.HtmlCompat
 import androidx.core.widget.TextViewCompat
 
 class OverlayView(context: Context) : FrameLayout(context) {
@@ -15,6 +16,18 @@ class OverlayView(context: Context) : FrameLayout(context) {
     init {
         // Transparent container
         setBackgroundColor(Color.TRANSPARENT)
+    }
+
+    private fun markdownToHtml(markdown: String): String {
+        // Convert bold **text** to <b>text</b>
+        var html = markdown.replace("\\*\\*(.*?)\\*\\*".toRegex(), "<b>$1</b>")
+        // Convert italic *text* to <i>text</i>
+        html = html.replace("\\*(.*?)\\*".toRegex(), "<i>$1</i>")
+        // Convert italic _text_ to <i>text</i> (just in case)
+        html = html.replace("_(.*?)_".toRegex(), "<i>$1</i>")
+        // Convert newlines to <br/>
+        html = html.replace("\n", "<br/>")
+        return html
     }
 
     /**
@@ -30,7 +43,8 @@ class OverlayView(context: Context) : FrameLayout(context) {
         val boxHeight = maxOf(boundingBox.height(), minHeight)
 
         val textView = TextView(context).apply {
-            text = translatedText
+            val htmlContent = markdownToHtml(translatedText)
+            text = HtmlCompat.fromHtml(htmlContent, HtmlCompat.FROM_HTML_MODE_LEGACY)
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
             

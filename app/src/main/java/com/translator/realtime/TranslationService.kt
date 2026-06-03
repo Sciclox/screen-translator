@@ -469,7 +469,14 @@ class TranslationService : Service() {
                     put(JSONObject().apply {
                         put("parts", JSONArray().apply {
                             put(JSONObject().apply {
-                                put("text", "Eres un traductor experto de manga e historias del idioma $sourceName al $targetName. Traduce el siguiente texto de forma natural, manteniendo el tono coloquial y el contexto. Devuelve UNICAMENTE la traducción final, sin comentarios, introducciones ni comillas adicionales.\n\nTexto:\n$text")
+                                put("text", "Eres un traductor experto de manga e historias del idioma $sourceName al $targetName. " +
+                                        "Traduce el siguiente texto de forma natural, fluida y adaptada al contexto del manga (tono coloquial, expresiones naturales de diálogo, etc.). " +
+                                        "Usa las siguientes reglas de formato Markdown:\n" +
+                                        "1. Usa **negrita** (ej. **¡Alto!**) para diálogos fuertes, gritos, exclamaciones o énfasis.\n" +
+                                        "2. Usa *cursiva* (ej. *¿Qué fue eso?*) para pensamientos internos, murmullos, susurros o explicaciones breves.\n" +
+                                        "3. No apliques formato al diálogo normal.\n" +
+                                        "4. Devuelve ÚNICAMENTE la traducción final con su formato correspondiente. No agregues introducciones, explicaciones, comentarios ni comillas externas alrededor de la traducción.\n\n" +
+                                        "Texto a traducir:\n$text")
                             })
                         })
                     })
@@ -487,6 +494,13 @@ class TranslationService : Service() {
                 val content = candidates.getJSONObject(0).getJSONObject("content")
                 val parts = content.getJSONArray("parts")
                 var result = parts.getJSONObject(0).getString("text").trim()
+                
+                // Strip markdown code blocks like ```markdown or ``` if present
+                if (result.startsWith("```")) {
+                    result = result.replace("^```(?:markdown)?\\s*".toRegex(), "")
+                    result = result.replace("\\s*```$".toRegex(), "")
+                    result = result.trim()
+                }
                 
                 // Strip unnecessary enclosing quotes if Gemini wraps the response in them
                 if (result.startsWith("\"") && result.endsWith("\"")) {
