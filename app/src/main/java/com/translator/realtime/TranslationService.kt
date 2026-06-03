@@ -32,6 +32,9 @@ import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.Translator
 import com.google.mlkit.nl.translate.TranslatorOptions
 import com.google.mlkit.nl.translate.TranslateLanguage
+import java.net.HttpURLConnection
+import java.net.URL
+import org.json.JSONArray
 
 class TranslationService : Service() {
 
@@ -292,13 +295,24 @@ class TranslationService : Service() {
                     val cleanedText = cleanTextForTranslation(originalText, activeSourceLang)
                     if (cleanedText.isBlank()) continue
 
-                    trans.translate(cleanedText)
-                        .addOnSuccessListener { translatedText ->
-                            // Confirm overlays are still active before displaying
+                    // Translate on a background thread for high-quality online API with offline fallback
+                    Thread {
+                        val translatedText = translateOnline(cleanedText, activeSourceLang, activeTargetLang)
+                        
+                        if (translatedText != null) {
                             if (translationsShowing) {
                                 overlayView.addTranslation(translatedText, bounds)
                             }
+                        } else {
+                            // Fallback to offline translation model
+                            trans.translate(cleanedText)
+                                .addOnSuccessListener { offlineTranslation ->
+                                    if (translationsShowing) {
+                                        overlayView.addTranslation(offlineTranslation, bounds)
+                                    }
+                                }
                         }
+                    }.start()
                 }
             }
             .addOnFailureListener { e ->
@@ -374,6 +388,39 @@ class TranslationService : Service() {
         sendBroadcast(Intent(MainActivity.ACTION_SERVICE_STATE_CHANGED).apply {
             setPackage(packageName)
         })
+    }
+
+    private fun translateOnline(text: String, source: String, target: String): String? {
+        var conn: HttpURLConnection? = null
+        return try {
+            val urlStr = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=$source&tl=$target&dt=t&q=" + 
+                    java.net.URLEncoder.encode(text, "UTF-8")
+            val url = URL(urlStr)
+            conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.connectTimeout = 4000
+            conn.readTimeout = 4000
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0")
+            
+            if (conn.responseCode == 200) {
+                val response = conn.inputStream.bufferedReader().use { it.readText() }
+                val jsonArray = JSONArray(response)
+                val sentencesArray = jsonArray.getJSONArray(0)
+                val result = StringBuilder()
+                for (i in 0 until sentencesArray.length()) {
+                    val sentence = sentencesArray.getJSONArray(i)
+                    result.append(sentence.getString(0))
+                }
+                result.toString()
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        } finally {
+            conn?.disconnect()
+        }
     }
 
     private fun cleanTextForTranslation(text: String, sourceLang: String): String {
